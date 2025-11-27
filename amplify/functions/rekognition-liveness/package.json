@@ -1,0 +1,11 @@
+{
+    "name": "rekognition-liveness",
+    "version": "1.0.0",
+    "type": "module",
+    "dependencies": {
+        "@aws-sdk/client-rekognition": "^3.940.0"
+    },
+    "devDependencies": {
+        "esbuild": "^0.27.0"
+    }
+}
