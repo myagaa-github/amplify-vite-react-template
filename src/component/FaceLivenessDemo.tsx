@@ -127,7 +127,10 @@ export default function FaceLivenessDemo() {
   // WebView detection
   const isWebView = () => {
     const userAgent =
-      navigator.userAgent || navigator.vendor || (window as any).opera;
+      navigator.userAgent ||
+      navigator.vendor ||
+      (window as Window & { opera?: string }).opera ||
+      "";
     return /(android|iphone|ipad|ipod|blackberry|iemobile|opera mini)/i.test(
       userAgent.toLowerCase()
     );
@@ -175,7 +178,7 @@ export default function FaceLivenessDemo() {
       stream.getTracks().forEach((track) => track.stop());
 
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
 
       if (
@@ -408,11 +411,7 @@ export default function FaceLivenessDemo() {
             onUserCancel={handleUserCancel}
             onError={handleLivenessError}
             // WebView-д зориулсан optimization
-            disableInstructionScreen={false}
-            config={{
-              // Connection timeout нэмэх
-              binaryVersion: "1.0.0",
-            }}
+            disableStartScreen={false}
           />
         </div>
       )}
