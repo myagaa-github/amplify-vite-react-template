@@ -9,10 +9,18 @@ interface LivenessSession {
   stream: unknown;
 }
 
+interface AuditImage {
+  Bytes?: Uint8Array | string | number[];
+  S3Object?: {
+    Bucket?: string;
+    Name?: string;
+  };
+}
+
 interface LivenessResult {
   status?: string;
   confidence?: number;
-  auditImages?: unknown[];
+  auditImages?: AuditImage[];
 }
 
 const BUTTON_STYLES = {
@@ -370,6 +378,54 @@ export default function FaceLivenessDemo() {
     createSession();
   };
 
+  // Audit image-г base64 data URL болгон хөрвүүлэх функц
+  const getImageDataUrl = (auditImage: AuditImage): string | null => {
+    try {
+      // Bytes property байвал ашиглах
+      if (auditImage.Bytes) {
+        // Uint8Array эсвэл base64 string байж болно
+        if (typeof auditImage.Bytes === "string") {
+          // Base64 string байвал шууд ашиглах
+          // Хэрэв аль хэдийн "data:image" эхэлж байвал шууд буцаах
+          if (auditImage.Bytes.startsWith("data:image")) {
+            return auditImage.Bytes;
+          }
+          // Эсвэл base64 string байвал data URL болгох
+          return `data:image/jpeg;base64,${auditImage.Bytes}`;
+        } else if (auditImage.Bytes instanceof Uint8Array) {
+          // Uint8Array байвал base64 болгон хөрвүүлэх
+          // Том файлуудын хувьд chunk-ууд ашиглах
+          let binary = "";
+          const len = auditImage.Bytes.byteLength;
+          for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(auditImage.Bytes[i]);
+          }
+          const base64 = btoa(binary);
+          return `data:image/jpeg;base64,${base64}`;
+        } else if (Array.isArray(auditImage.Bytes)) {
+          // Array байвал (JSON serialization-ийн үр дүн) Uint8Array болгон хөрвүүлэх
+          // Том файлуудын хувьд chunk-ууд ашиглах
+          let binary = "";
+          for (let i = 0; i < auditImage.Bytes.length; i++) {
+            binary += String.fromCharCode(auditImage.Bytes[i]);
+          }
+          const base64 = btoa(binary);
+          return `data:image/jpeg;base64,${base64}`;
+        }
+      }
+
+      // S3Object байвал (одоогоор дэмжэхгүй, гэхдээ ирээдүйд нэмж болно)
+      if (auditImage.S3Object) {
+        console.warn("S3Object images are not yet supported for display");
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Error converting audit image:", error, auditImage);
+      return null;
+    }
+  };
+
   return (
     <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
       <h1>AWS Face Rekognition Liveness Demo</h1>
@@ -515,9 +571,67 @@ export default function FaceLivenessDemo() {
           )}
 
           {result.auditImages && Array.isArray(result.auditImages) && (
-            <div style={{ marginBottom: "10px" }}>
+            <div style={{ marginBottom: "20px" }}>
               <strong>Audit Images:</strong> {result.auditImages.length}{" "}
               image(s)
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: "15px",
+                  marginTop: "15px",
+                }}
+              >
+                {result.auditImages.map((auditImage, index) => {
+                  const imageUrl = getImageDataUrl(auditImage);
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        border: "1px solid #ddd",
+                        borderRadius: "5px",
+                        padding: "10px",
+                        backgroundColor: "#f8f9fa",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          color: "#666",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        Image {index + 1}
+                      </div>
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={`Audit image ${index + 1}`}
+                          style={{
+                            width: "100%",
+                            height: "auto",
+                            borderRadius: "3px",
+                            maxHeight: "300px",
+                            objectFit: "contain",
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            padding: "20px",
+                            textAlign: "center",
+                            color: "#999",
+                            backgroundColor: "#f0f0f0",
+                            borderRadius: "3px",
+                          }}
+                        >
+                          Unable to display image
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

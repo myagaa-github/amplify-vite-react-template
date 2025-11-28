@@ -4,11 +4,22 @@ import {
   GetFaceLivenessSessionResultsCommand,
 } from "@aws-sdk/client-rekognition";
 
+interface LambdaEvent {
+  body?: string | Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface LambdaResponse {
+  statusCode: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
 const rekognitionClient = new RekognitionClient({
   region: process.env.REGION || "us-east-1",
 });
 
-export const handler = async (event: any) => {
+export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   console.log("Event:", JSON.stringify(event, null, 2));
 
   // Lambda Function URL-ийн CORS configuration автоматаар CORS headers нэмдэг
@@ -50,7 +61,9 @@ export const handler = async (event: any) => {
         body: JSON.stringify({
           sessionId: response.SessionId,
           // StreamSessionOutput нь optional байж болно
-          stream: (response as any).StreamSessionOutput || null,
+          stream:
+            (response as { StreamSessionOutput?: unknown })
+              .StreamSessionOutput || null,
         }),
       };
     }
@@ -63,13 +76,29 @@ export const handler = async (event: any) => {
 
       const response = await rekognitionClient.send(command);
 
+      // AuditImages-ийн Uint8Array-г base64 string болгон хөрвүүлэх
+      const processedAuditImages = response.AuditImages?.map((image) => {
+        if (image.Bytes && image.Bytes instanceof Uint8Array) {
+          // Uint8Array-г base64 string болгон хөрвүүлэх
+          const bytes = image.Bytes;
+          // Buffer ашиглах (Node.js runtime-д байдаг)
+          const base64 = Buffer.from(bytes).toString("base64");
+          return {
+            ...image,
+            Bytes: base64,
+          };
+        }
+        // Хэрэв аль хэдийн string эсвэл бусад формат байвал шууд буцаах
+        return image;
+      });
+
       return {
         statusCode: 200,
         headers: responseHeaders,
         body: JSON.stringify({
           status: response.Status,
           confidence: response.Confidence,
-          auditImages: response.AuditImages,
+          auditImages: processedAuditImages || response.AuditImages,
         }),
       };
     }
@@ -79,13 +108,15 @@ export const handler = async (event: any) => {
       headers: responseHeaders,
       body: JSON.stringify({ error: "Invalid action" }),
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Internal server error";
     return {
       statusCode: 500,
       headers: responseHeaders,
       body: JSON.stringify({
-        error: error.message || "Internal server error",
+        error: errorMessage,
       }),
     };
   }
