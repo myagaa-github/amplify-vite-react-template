@@ -512,8 +512,24 @@ export default function FaceLivenessDemo() {
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
-      <h1>AWS Face Rekognition Liveness Demo</h1>
+    <div
+      style={{
+        padding: "10px",
+        maxWidth: "100%",
+        margin: "0 auto",
+        width: "100%",
+        boxSizing: "border-box",
+      }}
+    >
+      <h1
+        style={{
+          fontSize: "clamp(20px, 5vw, 28px)",
+          marginBottom: "15px",
+          textAlign: "center",
+        }}
+      >
+        AWS Face Rekognition Liveness Demo
+      </h1>
 
       {/* Connection status indicator */}
       {connectionStatus && (
@@ -526,7 +542,13 @@ export default function FaceLivenessDemo() {
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "14px", color: "#0066cc" }}>
+          <div
+            style={{
+              fontSize: "clamp(12px, 3vw, 14px)",
+              color: "#0066cc",
+              wordBreak: "break-word",
+            }}
+          >
             🔄 {connectionStatus}
           </div>
         </div>
@@ -536,7 +558,12 @@ export default function FaceLivenessDemo() {
         <button
           onClick={createSession}
           disabled={loading}
-          style={loading ? BUTTON_STYLES.disabled : BUTTON_STYLES.primary}
+          style={{
+            ...(loading ? BUTTON_STYLES.disabled : BUTTON_STYLES.primary),
+            width: "100%",
+            fontSize: "clamp(14px, 4vw, 16px)",
+            padding: "12px 20px",
+          }}
         >
           {loading ? "Creating session..." : "Start Face Liveness Check"}
         </button>
@@ -560,20 +587,49 @@ export default function FaceLivenessDemo() {
 
       {session && !isLivenessActive && (
         <div style={{ marginTop: "20px" }}>
-          <p>Session ID: {session.sessionId}</p>
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-            <button onClick={startNewSession} style={BUTTON_STYLES.primary}>
+          <p
+            style={{
+              fontSize: "clamp(12px, 3vw, 14px)",
+              wordBreak: "break-all",
+              marginBottom: "10px",
+            }}
+          >
+            Session ID: {session.sessionId}
+          </p>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
+            <button
+              onClick={startNewSession}
+              style={{
+                ...BUTTON_STYLES.primary,
+                width: "100%",
+                fontSize: "clamp(14px, 4vw, 16px)",
+              }}
+            >
               Start New Session
             </button>
             <button
               onClick={() => setIsLivenessActive(true)}
-              style={BUTTON_STYLES.success}
+              style={{
+                ...BUTTON_STYLES.success,
+                width: "100%",
+                fontSize: "clamp(14px, 4vw, 16px)",
+              }}
             >
               Start Liveness Check
             </button>
             <button
               onClick={() => getResults(session.sessionId)}
-              style={BUTTON_STYLES.secondary}
+              style={{
+                ...BUTTON_STYLES.secondary,
+                width: "100%",
+                fontSize: "clamp(14px, 4vw, 16px)",
+              }}
             >
               Get Results
             </button>
@@ -585,16 +641,26 @@ export default function FaceLivenessDemo() {
         <div
           style={{
             marginTop: "20px",
-            padding: "20px",
+            padding: "15px",
             textAlign: "center",
             backgroundColor: "#e7f3ff",
             borderRadius: "5px",
           }}
         >
-          <div style={{ fontSize: "18px", marginBottom: "10px" }}>
+          <div
+            style={{
+              fontSize: "clamp(16px, 4vw, 18px)",
+              marginBottom: "10px",
+            }}
+          >
             🔍 Verifying results...
           </div>
-          <div style={{ color: "#666" }}>
+          <div
+            style={{
+              color: "#666",
+              fontSize: "clamp(12px, 3vw, 14px)",
+            }}
+          >
             Please wait while we verify your liveness check results.
           </div>
         </div>
@@ -608,6 +674,8 @@ export default function FaceLivenessDemo() {
             padding: "10px",
             backgroundColor: "#ffe7e7",
             borderRadius: "5px",
+            fontSize: "clamp(12px, 3vw, 14px)",
+            wordBreak: "break-word",
           }}
         >
           <strong>Error:</strong> {error}
@@ -618,7 +686,7 @@ export default function FaceLivenessDemo() {
         <div
           style={{
             marginTop: "20px",
-            padding: "20px",
+            padding: "15px",
             backgroundColor:
               result.status === "SUCCEEDED" ? "#e7f5e7" : "#fff3cd",
             borderRadius: "5px",
@@ -627,14 +695,26 @@ export default function FaceLivenessDemo() {
             }`,
           }}
         >
-          <h3 style={{ marginTop: 0 }}>
+          <h3
+            style={{
+              marginTop: 0,
+              fontSize: "clamp(18px, 4.5vw, 22px)",
+              textAlign: "center",
+            }}
+          >
             {result.status === "SUCCEEDED"
               ? "✅ Liveness Check Passed"
               : "⚠️ Liveness Check Results"}
           </h3>
 
           {result.status && typeof result.status === "string" && (
-            <div style={{ marginBottom: "10px" }}>
+            <div
+              style={{
+                marginBottom: "10px",
+                fontSize: "clamp(12px, 3vw, 14px)",
+                textAlign: "center",
+              }}
+            >
               <strong>Status:</strong>{" "}
               <span
                 style={{
@@ -648,7 +728,13 @@ export default function FaceLivenessDemo() {
           )}
 
           {result.confidence !== undefined && (
-            <div style={{ marginBottom: "10px" }}>
+            <div
+              style={{
+                marginBottom: "10px",
+                fontSize: "clamp(12px, 3vw, 14px)",
+                textAlign: "center",
+              }}
+            >
               <strong>Liveness Confidence:</strong>{" "}
               {typeof result.confidence === "number"
                 ? `${(result.confidence * 100).toFixed(2)}%`
@@ -658,8 +744,19 @@ export default function FaceLivenessDemo() {
 
           {result.auditImages && Array.isArray(result.auditImages) && (
             <div style={{ marginBottom: "20px" }}>
-              <strong>Audit Images:</strong> {result.auditImages.length}{" "}
-              image(s)
+              <div
+                style={{
+                  textAlign: "center",
+                  marginBottom: "10px",
+                }}
+              >
+                <strong style={{ fontSize: "clamp(14px, 3.5vw, 16px)" }}>
+                  Audit Images:
+                </strong>{" "}
+                <span style={{ fontSize: "clamp(14px, 3.5vw, 16px)" }}>
+                  {result.auditImages.length} image(s)
+                </span>
+              </div>
               {result.auditImages.length === 0 && (
                 <div
                   style={{
@@ -667,12 +764,20 @@ export default function FaceLivenessDemo() {
                     padding: "10px",
                     backgroundColor: "#fff3cd",
                     borderRadius: "5px",
-                    fontSize: "14px",
+                    fontSize: "clamp(12px, 3vw, 14px)",
                     color: "#856404",
+                    textAlign: "center",
                   }}
                 >
                   <strong>⚠️ No audit images available</strong>
-                  <div style={{ marginTop: "5px", fontSize: "12px" }}>
+                  <div
+                    style={{
+                      marginTop: "5px",
+                      fontSize: "clamp(11px, 2.5vw, 12px)",
+                      textAlign: "left",
+                      display: "inline-block",
+                    }}
+                  >
                     This might be because:
                     <ul style={{ marginTop: "5px", marginLeft: "20px" }}>
                       <li>Session was not completed properly</li>
@@ -684,10 +789,18 @@ export default function FaceLivenessDemo() {
               )}
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  display: "flex",
                   gap: "15px",
                   marginTop: "15px",
+                  marginLeft: "-15px",
+                  marginRight: "-15px",
+                  paddingLeft: "15px",
+                  paddingRight: "15px",
+                  paddingBottom: "10px",
+                  overflowX: "auto",
+                  overflowY: "hidden",
+                  WebkitOverflowScrolling: "touch",
+                  scrollbarWidth: "thin",
                 }}
               >
                 {result.auditImages.map((auditImage, index) => {
@@ -704,14 +817,17 @@ export default function FaceLivenessDemo() {
                       style={{
                         border: "1px solid #ddd",
                         borderRadius: "5px",
-                        padding: "10px",
+                        padding: "8px",
                         backgroundColor: "#f8f9fa",
                         position: "relative",
+                        minWidth: "200px",
+                        maxWidth: "250px",
+                        flexShrink: 0,
                       }}
                     >
                       <div
                         style={{
-                          fontSize: "12px",
+                          fontSize: "clamp(11px, 2.5vw, 12px)",
                           color: "#666",
                           marginBottom: "8px",
                         }}
@@ -726,7 +842,7 @@ export default function FaceLivenessDemo() {
                             width: "100%",
                             height: "auto",
                             borderRadius: "3px",
-                            maxHeight: "300px",
+                            maxHeight: "250px",
                             objectFit: "contain",
                           }}
                           onError={(e) => {
@@ -748,17 +864,23 @@ export default function FaceLivenessDemo() {
                       ) : (
                         <div
                           style={{
-                            padding: "20px",
+                            padding: "15px",
                             textAlign: "center",
                             color: "#999",
                             backgroundColor: "#f0f0f0",
                             borderRadius: "3px",
                           }}
                         >
-                          <div>Unable to display image</div>
                           <div
                             style={{
-                              fontSize: "10px",
+                              fontSize: "clamp(11px, 2.5vw, 12px)",
+                            }}
+                          >
+                            Unable to display image
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "clamp(9px, 2vw, 10px)",
                               marginTop: "5px",
                               color: "#666",
                             }}
@@ -789,7 +911,13 @@ export default function FaceLivenessDemo() {
           )}
 
           <details style={{ marginTop: "15px" }}>
-            <summary style={{ cursor: "pointer", color: "#007bff" }}>
+            <summary
+              style={{
+                cursor: "pointer",
+                color: "#007bff",
+                fontSize: "clamp(12px, 3vw, 14px)",
+              }}
+            >
               View Raw Results
             </summary>
             <pre
@@ -800,6 +928,9 @@ export default function FaceLivenessDemo() {
                 borderRadius: "3px",
                 overflow: "auto",
                 maxHeight: "300px",
+                fontSize: "clamp(10px, 2.5vw, 12px)",
+                wordBreak: "break-word",
+                whiteSpace: "pre-wrap",
               }}
             >
               {JSON.stringify(result, null, 2)}
@@ -807,7 +938,14 @@ export default function FaceLivenessDemo() {
           </details>
 
           <div style={{ marginTop: "15px" }}>
-            <button onClick={startNewSession} style={BUTTON_STYLES.primary}>
+            <button
+              onClick={startNewSession}
+              style={{
+                ...BUTTON_STYLES.primary,
+                width: "100%",
+                fontSize: "clamp(14px, 4vw, 16px)",
+              }}
+            >
               Start New Session
             </button>
           </div>
