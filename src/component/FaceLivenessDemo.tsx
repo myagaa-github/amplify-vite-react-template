@@ -23,44 +23,43 @@ interface LivenessResult {
   auditImages?: AuditImage[];
 }
 
+// Constants
+const TIMEOUTS = {
+  CONNECTION: 120000, // 2 минут
+  ANALYSIS_WAIT: 3000, // 3 секунд
+  RETRY_DELAY: 2000, // 2 секунд
+} as const;
+
+const RETRY_CONFIG = {
+  MAX_RETRIES: 3,
+  DELAY: TIMEOUTS.RETRY_DELAY,
+} as const;
+
+// Utility functions
+const getErrorMessage = (error: unknown): string => {
+  return error instanceof Error ? error.message : String(error);
+};
+
+const createButtonStyle = (
+  backgroundColor: string,
+  cursor: string = "pointer",
+  opacity: number = 1
+) => ({
+  padding: "10px 20px",
+  fontSize: "16px",
+  backgroundColor,
+  color: "white",
+  border: "none",
+  borderRadius: "5px",
+  cursor,
+  opacity,
+});
+
 const BUTTON_STYLES = {
-  primary: {
-    padding: "10px 20px",
-    fontSize: "16px",
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "pointer",
-  },
-  success: {
-    padding: "10px 20px",
-    fontSize: "16px",
-    backgroundColor: "#28a745",
-    color: "white",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "pointer",
-  },
-  secondary: {
-    padding: "10px 20px",
-    fontSize: "16px",
-    backgroundColor: "#6c757d",
-    color: "white",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "pointer",
-  },
-  disabled: {
-    padding: "10px 20px",
-    fontSize: "16px",
-    backgroundColor: "#007bff",
-    color: "white",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "not-allowed",
-    opacity: 0.6,
-  },
+  primary: createButtonStyle("#007bff"),
+  success: createButtonStyle("#28a745"),
+  secondary: createButtonStyle("#6c757d"),
+  disabled: createButtonStyle("#007bff", "not-allowed", 0.6),
 };
 
 export default function FaceLivenessDemo() {
@@ -109,9 +108,10 @@ export default function FaceLivenessDemo() {
         "Function URL not found. Please set VITE_REKOGNITION_FUNCTION_URL in .env.local or deploy backend."
       );
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
       throw new Error(
-        `Function URL not found. Please deploy backend first. Error: ${errorMessage}`
+        `Function URL not found. Please deploy backend first. Error: ${getErrorMessage(
+          err
+        )}`
       );
     }
   };
@@ -119,14 +119,13 @@ export default function FaceLivenessDemo() {
   // WebRTC Connection Status Tracking
   useEffect(() => {
     if (isLivenessActive && session) {
-      // Connection timeout (30 секунд)
       const timeout = setTimeout(() => {
         if (isLivenessActive) {
           setError("Connection timeout. Please try again.");
           setIsLivenessActive(false);
           setConnectionStatus(null);
         }
-      }, 30000);
+      }, TIMEOUTS.CONNECTION);
 
       return () => clearTimeout(timeout);
     }
@@ -187,25 +186,35 @@ export default function FaceLivenessDemo() {
 
       return true;
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
+      const errorMessage = getErrorMessage(err);
+      const errorMessages = {
+        permission: [
+          "Permission denied",
+          "NotAllowedError",
+          "Camera permission denied. Please allow camera access in your browser settings.",
+        ],
+        notFound: [
+          "NotFoundError",
+          "DevicesNotFoundError",
+          "No camera found. Please connect a camera and try again.",
+        ],
+        inUse: [
+          "NotReadableError",
+          "TrackStartError",
+          "Camera is already in use by another application.",
+        ],
+      };
 
-      if (
-        errorMessage.includes("Permission denied") ||
-        errorMessage.includes("NotAllowedError")
-      ) {
-        setError(
-          "Camera permission denied. Please allow camera access in your browser settings."
-        );
+      if (errorMessages.permission.some((msg) => errorMessage.includes(msg))) {
+        setError(errorMessages.permission[2]);
       } else if (
-        errorMessage.includes("NotFoundError") ||
-        errorMessage.includes("DevicesNotFoundError")
+        errorMessages.notFound.some((msg) => errorMessage.includes(msg))
       ) {
-        setError("No camera found. Please connect a camera and try again.");
+        setError(errorMessages.notFound[2]);
       } else if (
-        errorMessage.includes("NotReadableError") ||
-        errorMessage.includes("TrackStartError")
+        errorMessages.inUse.some((msg) => errorMessage.includes(msg))
       ) {
-        setError("Camera is already in use by another application.");
+        setError(errorMessages.inUse[2]);
       } else {
         setError(`Camera access error: ${errorMessage}`);
       }
@@ -214,12 +223,38 @@ export default function FaceLivenessDemo() {
     }
   };
 
+  // API call helper function
+  const callLambdaFunction = async (
+    action: string,
+    body?: Record<string, unknown>
+  ) => {
+    const authSession = await fetchAuthSession();
+    const functionUrl = await getFunctionUrl();
+
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authSession.tokens?.idToken?.toString()}`,
+      },
+      body: JSON.stringify({ action, ...body }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Failed to ${action}: ${response.status} ${response.statusText}\n${errorText}`
+      );
+    }
+
+    return response.json();
+  };
+
   const createSession = async () => {
     setLoading(true);
     setError(null);
     setConnectionStatus(null);
 
-    // Camera access шалгах
     const hasCameraAccess = await checkCameraAccess();
     if (!hasCameraAccess) {
       setLoading(false);
@@ -228,35 +263,7 @@ export default function FaceLivenessDemo() {
 
     try {
       setConnectionStatus("Creating session...");
-      const authSession = await fetchAuthSession();
-      const functionUrl = await getFunctionUrl();
-
-      console.log("🔐 Fetching auth session...");
-      console.log("✅ Auth session:", {
-        hasTokens: !!authSession.tokens,
-        hasIdToken: !!authSession.tokens?.idToken,
-      });
-
-      console.log("🔗 Getting function URL...");
-      console.log("✅ Function URL:", functionUrl);
-
-      const response = await fetch(functionUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authSession.tokens?.idToken?.toString()}`,
-        },
-        body: JSON.stringify({ action: "createSession" }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Failed to create session: ${response.status} ${response.statusText}\n${errorText}`
-        );
-      }
-
-      const data = await response.json();
+      const data = await callLambdaFunction("createSession");
 
       if (!data.sessionId) {
         throw new Error("Session ID not found in response");
@@ -266,8 +273,7 @@ export default function FaceLivenessDemo() {
       setConnectionStatus("Connecting to camera...");
       setIsLivenessActive(true);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(errorMessage);
+      setError(getErrorMessage(err));
       setConnectionStatus(null);
     } finally {
       setLoading(false);
@@ -280,12 +286,19 @@ export default function FaceLivenessDemo() {
     setIsLivenessActive(false);
     setVerifying(true);
     setError(null);
-    setConnectionStatus(null);
+    setConnectionStatus("Analysis complete. Processing results...");
 
     try {
+      console.log("Waiting for Rekognition to process audit images...");
+      await new Promise((resolve) =>
+        setTimeout(resolve, TIMEOUTS.ANALYSIS_WAIT)
+      );
+
+      setConnectionStatus("Fetching results...");
       await getResults(session.sessionId);
     } finally {
       setVerifying(false);
+      setConnectionStatus(null);
     }
   };
 
@@ -334,41 +347,77 @@ export default function FaceLivenessDemo() {
     setIsLivenessActive(false);
   };
 
-  const getResults = async (sessionId: string) => {
+  const hasEmptyAuditImages = (data: unknown): boolean => {
+    return (
+      !data ||
+      typeof data !== "object" ||
+      !("auditImages" in data) ||
+      !Array.isArray((data as { auditImages: unknown }).auditImages) ||
+      (data as { auditImages: unknown[] }).auditImages.length === 0
+    );
+  };
+
+  const getResults = async (sessionId: string, retryCount = 0) => {
     try {
-      const authSession = await fetchAuthSession();
-      const functionUrl = await getFunctionUrl();
+      const data = await callLambdaFunction("getResults", { sessionId });
 
-      const response = await fetch(functionUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authSession.tokens?.idToken?.toString()}`,
-        },
-        body: JSON.stringify({
-          action: "getResults",
-          sessionId,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Failed to get results: ${response.status} ${response.statusText}\n${errorText}`
+      // Хэрэв audit images хоосон байвал retry хийх
+      if (retryCount < RETRY_CONFIG.MAX_RETRIES && hasEmptyAuditImages(data)) {
+        console.log(
+          `Audit images not ready yet, retrying... (${retryCount + 1}/${
+            RETRY_CONFIG.MAX_RETRIES
+          })`
         );
+        setConnectionStatus(
+          `Waiting for audit images... (${retryCount + 1}/${
+            RETRY_CONFIG.MAX_RETRIES
+          })`
+        );
+        await new Promise((resolve) => setTimeout(resolve, RETRY_CONFIG.DELAY));
+        return getResults(sessionId, retryCount + 1);
       }
 
-      const data = await response.json();
+      console.log("getResults response:", {
+        status: data.status,
+        confidence: data.confidence,
+        hasAuditImages: !!data.auditImages,
+        auditImagesCount: data.auditImages?.length || 0,
+        auditImagesType: data.auditImages ? typeof data.auditImages : "null",
+        isArray: Array.isArray(data.auditImages),
+        fullData: data,
+      });
 
       if (!data || typeof data !== "object") {
         throw new Error("Invalid results format");
       }
 
+      // AuditImages-ийн эхний image-ийн мэдээллийг log хийх
+      if (
+        data.auditImages &&
+        Array.isArray(data.auditImages) &&
+        data.auditImages.length > 0
+      ) {
+        console.log("First audit image sample:", {
+          hasBytes: !!data.auditImages[0].Bytes,
+          bytesType: data.auditImages[0].Bytes
+            ? typeof data.auditImages[0].Bytes
+            : "null",
+          isUint8Array: data.auditImages[0].Bytes instanceof Uint8Array,
+          isArray: Array.isArray(data.auditImages[0].Bytes),
+          bytesPreview: data.auditImages[0].Bytes
+            ? typeof data.auditImages[0].Bytes === "string"
+              ? data.auditImages[0].Bytes.substring(0, 50) + "..."
+              : Array.isArray(data.auditImages[0].Bytes)
+              ? `Array[${data.auditImages[0].Bytes.length}]`
+              : "Uint8Array"
+            : "null",
+        });
+      }
+
       setResult(data);
       setError(null);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      setError(errorMessage);
+      setError(getErrorMessage(err));
       setResult(null);
     }
   };
@@ -381,18 +430,40 @@ export default function FaceLivenessDemo() {
   // Audit image-г base64 data URL болгон хөрвүүлэх функц
   const getImageDataUrl = (auditImage: AuditImage): string | null => {
     try {
+      console.log("getImageDataUrl called with:", {
+        hasBytes: !!auditImage.Bytes,
+        bytesType: auditImage.Bytes ? typeof auditImage.Bytes : "null",
+        isUint8Array: auditImage.Bytes instanceof Uint8Array,
+        isArray: Array.isArray(auditImage.Bytes),
+        bytesLength: auditImage.Bytes
+          ? Array.isArray(auditImage.Bytes)
+            ? auditImage.Bytes.length
+            : auditImage.Bytes instanceof Uint8Array
+            ? auditImage.Bytes.length
+            : typeof auditImage.Bytes === "string"
+            ? auditImage.Bytes.length
+            : "unknown"
+          : 0,
+        hasS3Object: !!auditImage.S3Object,
+      });
+
       // Bytes property байвал ашиглах
       if (auditImage.Bytes) {
         // Uint8Array эсвэл base64 string байж болно
         if (typeof auditImage.Bytes === "string") {
+          console.log("Bytes is string, length:", auditImage.Bytes.length);
           // Base64 string байвал шууд ашиглах
           // Хэрэв аль хэдийн "data:image" эхэлж байвал шууд буцаах
           if (auditImage.Bytes.startsWith("data:image")) {
+            console.log("Already a data URL, returning as-is");
             return auditImage.Bytes;
           }
           // Эсвэл base64 string байвал data URL болгох
-          return `data:image/jpeg;base64,${auditImage.Bytes}`;
+          const dataUrl = `data:image/jpeg;base64,${auditImage.Bytes}`;
+          console.log("Created data URL from string, length:", dataUrl.length);
+          return dataUrl;
         } else if (auditImage.Bytes instanceof Uint8Array) {
+          console.log("Bytes is Uint8Array, length:", auditImage.Bytes.length);
           // Uint8Array байвал base64 болгон хөрвүүлэх
           // Том файлуудын хувьд chunk-ууд ашиглах
           let binary = "";
@@ -401,8 +472,14 @@ export default function FaceLivenessDemo() {
             binary += String.fromCharCode(auditImage.Bytes[i]);
           }
           const base64 = btoa(binary);
-          return `data:image/jpeg;base64,${base64}`;
+          const dataUrl = `data:image/jpeg;base64,${base64}`;
+          console.log(
+            "Converted Uint8Array to base64, dataUrl length:",
+            dataUrl.length
+          );
+          return dataUrl;
         } else if (Array.isArray(auditImage.Bytes)) {
+          console.log("Bytes is Array, length:", auditImage.Bytes.length);
           // Array байвал (JSON serialization-ийн үр дүн) Uint8Array болгон хөрвүүлэх
           // Том файлуудын хувьд chunk-ууд ашиглах
           let binary = "";
@@ -410,7 +487,14 @@ export default function FaceLivenessDemo() {
             binary += String.fromCharCode(auditImage.Bytes[i]);
           }
           const base64 = btoa(binary);
-          return `data:image/jpeg;base64,${base64}`;
+          const dataUrl = `data:image/jpeg;base64,${base64}`;
+          console.log(
+            "Converted Array to base64, dataUrl length:",
+            dataUrl.length
+          );
+          return dataUrl;
+        } else {
+          console.warn("Bytes is unknown type:", typeof auditImage.Bytes);
         }
       }
 
@@ -419,6 +503,7 @@ export default function FaceLivenessDemo() {
         console.warn("S3Object images are not yet supported for display");
       }
 
+      console.warn("No valid image data found in auditImage");
       return null;
     } catch (error) {
       console.error("Error converting audit image:", error, auditImage);
@@ -468,6 +553,7 @@ export default function FaceLivenessDemo() {
             onError={handleLivenessError}
             // WebView-д зориулсан optimization
             disableStartScreen={false}
+            // Session-ийг илүү удаан хүлээх - timeout нэмэгдүүлсэн
           />
         </div>
       )}
@@ -563,7 +649,7 @@ export default function FaceLivenessDemo() {
 
           {result.confidence !== undefined && (
             <div style={{ marginBottom: "10px" }}>
-              <strong>Confidence:</strong>{" "}
+              <strong>Liveness Confidence:</strong>{" "}
               {typeof result.confidence === "number"
                 ? `${(result.confidence * 100).toFixed(2)}%`
                 : String(result.confidence)}
@@ -574,6 +660,28 @@ export default function FaceLivenessDemo() {
             <div style={{ marginBottom: "20px" }}>
               <strong>Audit Images:</strong> {result.auditImages.length}{" "}
               image(s)
+              {result.auditImages.length === 0 && (
+                <div
+                  style={{
+                    marginTop: "10px",
+                    padding: "10px",
+                    backgroundColor: "#fff3cd",
+                    borderRadius: "5px",
+                    fontSize: "14px",
+                    color: "#856404",
+                  }}
+                >
+                  <strong>⚠️ No audit images available</strong>
+                  <div style={{ marginTop: "5px", fontSize: "12px" }}>
+                    This might be because:
+                    <ul style={{ marginTop: "5px", marginLeft: "20px" }}>
+                      <li>Session was not completed properly</li>
+                      <li>Rekognition did not capture audit images</li>
+                      <li>Please check CloudWatch Logs for more details</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
               <div
                 style={{
                   display: "grid",
@@ -583,7 +691,13 @@ export default function FaceLivenessDemo() {
                 }}
               >
                 {result.auditImages.map((auditImage, index) => {
+                  console.log(`Processing audit image ${index}:`, auditImage);
                   const imageUrl = getImageDataUrl(auditImage);
+                  console.log(
+                    `Image ${index} URL:`,
+                    imageUrl ? `${imageUrl.substring(0, 50)}...` : "null"
+                  );
+
                   return (
                     <div
                       key={index}
@@ -592,6 +706,7 @@ export default function FaceLivenessDemo() {
                         borderRadius: "5px",
                         padding: "10px",
                         backgroundColor: "#f8f9fa",
+                        position: "relative",
                       }}
                     >
                       <div
@@ -601,7 +716,7 @@ export default function FaceLivenessDemo() {
                           marginBottom: "8px",
                         }}
                       >
-                        Image {index + 1}
+                        <span>Image {index + 1}</span>
                       </div>
                       {imageUrl ? (
                         <img
@@ -614,6 +729,21 @@ export default function FaceLivenessDemo() {
                             maxHeight: "300px",
                             objectFit: "contain",
                           }}
+                          onError={(e) => {
+                            console.error(
+                              `Error loading image ${index + 1}:`,
+                              e
+                            );
+                            console.error(
+                              "Image URL:",
+                              imageUrl.substring(0, 100) + "..."
+                            );
+                          }}
+                          onLoad={() => {
+                            console.log(
+                              `Image ${index + 1} loaded successfully`
+                            );
+                          }}
                         />
                       ) : (
                         <div
@@ -625,7 +755,30 @@ export default function FaceLivenessDemo() {
                             borderRadius: "3px",
                           }}
                         >
-                          Unable to display image
+                          <div>Unable to display image</div>
+                          <div
+                            style={{
+                              fontSize: "10px",
+                              marginTop: "5px",
+                              color: "#666",
+                            }}
+                          >
+                            Bytes type:{" "}
+                            {auditImage.Bytes
+                              ? typeof auditImage.Bytes
+                              : "null"}
+                            {auditImage.Bytes &&
+                              Array.isArray(auditImage.Bytes) && (
+                                <> | Array length: {auditImage.Bytes.length}</>
+                              )}
+                            {auditImage.Bytes &&
+                              auditImage.Bytes instanceof Uint8Array && (
+                                <>
+                                  {" "}
+                                  | Uint8Array length: {auditImage.Bytes.length}
+                                </>
+                              )}
+                          </div>
                         </div>
                       )}
                     </div>

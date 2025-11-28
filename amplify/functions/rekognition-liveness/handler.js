@@ -50,8 +50,18 @@ export const handler = async (event) => {
 
     if (action === "createSession") {
       console.log("Creating Face Liveness Session...");
+      // Note: AuditImages нь автоматаар Rekognition-ээс буцаагдана
+      // S3 OutputConfig нь зөвхөн S3-д хадгалахын тулд шаардлагатай
+      // AuditImages нь getResults response-д шууд байх ёстой
       const command = new CreateFaceLivenessSessionCommand({
+        Settings: {
+          AuditImages: {
+            Enabled: true,
+          },
+          AuditImagesLimit: 4, // 0-4 хоорондын тоо (0 = хязгааргүй, 4 = хамгийн ихдээ 4 зураг)
+        },
         // Settings нь optional, хэрэв S3 bucket байхгүй бол арилгах
+        // AuditImages нь Settings-гүйгээр ч буцаагдана
         // Settings: {
         //   OutputConfig: {
         //     S3Bucket: process.env.S3_BUCKET_NAME,
@@ -104,6 +114,24 @@ export const handler = async (event) => {
           : "null",
         isArray: Array.isArray(response.AuditImages),
       });
+
+      // Full response structure-ийг log хийх (debugging)
+      console.log("Full Rekognition response structure:", {
+        Status: response.Status,
+        Confidence: response.Confidence,
+        AuditImages: response.AuditImages,
+        ReferenceImage: response.ReferenceImage ? "exists" : "null",
+        allKeys: Object.keys(response),
+      });
+
+      // Хэрэв AuditImages байхгүй эсвэл хоосон байвал анхааруулга
+      if (!response.AuditImages || response.AuditImages.length === 0) {
+        console.warn("⚠️ WARNING: AuditImages is empty or missing!");
+        console.warn("This might be because:");
+        console.warn("1. Session was not completed properly");
+        console.warn("2. AuditImages are not enabled in session settings");
+        console.warn("3. Rekognition did not capture audit images");
+      }
 
       // AuditImages-ийн Uint8Array-г base64 string болгон хөрвүүлэх
       let processedAuditImages = null;
@@ -176,11 +204,19 @@ export const handler = async (event) => {
         confidence: response.Confidence,
         auditImages: processedAuditImages || response.AuditImages || [],
       };
+
       console.log("Final response prepared:", {
         status: finalResponse.status,
         confidence: finalResponse.confidence,
         auditImagesCount: finalResponse.auditImages.length,
       });
+
+      // Хэрэв audit images хоосон байвал анхааруулга
+      if (finalResponse.auditImages.length === 0) {
+        console.warn("⚠️ Final response has 0 audit images!");
+        console.warn("Original response.AuditImages:", response.AuditImages);
+        console.warn("processedAuditImages:", processedAuditImages);
+      }
       console.log("=== Lambda Function Completed Successfully ===");
       return {
         statusCode: 200,
@@ -188,6 +224,7 @@ export const handler = async (event) => {
         body: JSON.stringify(finalResponse),
       };
     }
+
     console.error("Invalid action:", action);
     return {
       statusCode: 400,
