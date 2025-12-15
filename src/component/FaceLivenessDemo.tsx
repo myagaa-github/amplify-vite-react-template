@@ -579,7 +579,7 @@ export default function FaceLivenessDemo() {
             onUserCancel={handleUserCancel}
             onError={handleLivenessError}
             // WebView-д зориулсан optimization
-            disableStartScreen={false}
+            disableStartScreen={true}
             // Session-ийг илүү удаан хүлээх - timeout нэмэгдүүлсэн
           />
         </div>
