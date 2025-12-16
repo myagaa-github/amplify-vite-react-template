@@ -70,12 +70,33 @@ export default function FaceLivenessDemo() {
   const [result, setResult] = useState<LivenessResult | null>(null);
   const [isLivenessActive, setIsLivenessActive] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null); // Нэмэлт state
+  const [isStaticSession, setIsStaticSession] = useState(false); // Статик sessionId ашиглаж байгаа эсэх
+  const [staticSessionIdInput, setStaticSessionIdInput] = useState<string>(""); // Runtime-д оруулах статик sessionId
 
   const resetState = () => {
     setSession(null);
     setResult(null);
     setError(null);
     setIsLivenessActive(false);
+    setIsStaticSession(false);
+  };
+
+  // Статик sessionId-г авах функц
+  const getStaticSessionId = (): string | null => {
+    // Runtime-д оруулсан sessionId-г эхлээд шалгах
+    if (staticSessionIdInput && staticSessionIdInput.trim()) {
+      return staticSessionIdInput.trim();
+    }
+    // Environment variable-аас унших (fallback)
+    const envSessionId = import.meta.env.VITE_STATIC_SESSION_ID;
+    if (
+      envSessionId &&
+      typeof envSessionId === "string" &&
+      envSessionId.trim()
+    ) {
+      return envSessionId.trim();
+    }
+    return null;
   };
 
   const getFunctionUrl = async (): Promise<string> => {
@@ -255,6 +276,20 @@ export default function FaceLivenessDemo() {
     setError(null);
     setConnectionStatus(null);
 
+    // Статик sessionId байгаа эсэхийг шалгах
+    const staticSessionId = getStaticSessionId();
+    if (staticSessionId) {
+      // Статик sessionId ашиглах
+      setSession({ sessionId: staticSessionId, stream: null });
+      setIsStaticSession(true);
+      setConnectionStatus("Using static session ID. Connecting to camera...");
+      setIsLivenessActive(true);
+      setLoading(false);
+      return;
+    }
+
+    // Статик sessionId байхгүй бол шинээр үүсгэх
+    setIsStaticSession(false);
     const hasCameraAccess = await checkCameraAccess();
     if (!hasCameraAccess) {
       setLoading(false);
@@ -284,8 +319,21 @@ export default function FaceLivenessDemo() {
     if (!session) return;
 
     setIsLivenessActive(false);
-    setVerifying(true);
     setError(null);
+
+    // Статик sessionId ашиглаж байгаа бол getResults дуудах шаардлагагүй
+    if (isStaticSession) {
+      setConnectionStatus(
+        "Analysis complete. (Static session - results not fetched)"
+      );
+      setTimeout(() => {
+        setConnectionStatus(null);
+      }, 2000);
+      return;
+    }
+
+    // Ердийн session-ийн хувьд getResults дуудах
+    setVerifying(true);
     setConnectionStatus("Analysis complete. Processing results...");
 
     try {
@@ -555,18 +603,64 @@ export default function FaceLivenessDemo() {
       )}
 
       {!session && (
-        <button
-          onClick={createSession}
-          disabled={loading}
-          style={{
-            ...(loading ? BUTTON_STYLES.disabled : BUTTON_STYLES.primary),
-            width: "100%",
-            fontSize: "clamp(14px, 4vw, 16px)",
-            padding: "12px 20px",
-          }}
-        >
-          {loading ? "Creating session..." : "Start Face Liveness Check"}
-        </button>
+        <div style={{ marginTop: "10px" }}>
+          <div
+            style={{
+              marginBottom: "10px",
+              fontSize: "clamp(12px, 3vw, 14px)",
+              color: "#666",
+            }}
+          >
+            <label
+              htmlFor="static-session-id"
+              style={{
+                display: "block",
+                marginBottom: "5px",
+                fontWeight: "500",
+              }}
+            >
+              Static Session ID (optional):
+            </label>
+            <input
+              id="static-session-id"
+              type="text"
+              value={staticSessionIdInput}
+              onChange={(e) => setStaticSessionIdInput(e.target.value)}
+              placeholder="Enter session ID to use static session"
+              style={{
+                width: "100%",
+                padding: "10px",
+                fontSize: "clamp(12px, 3vw, 14px)",
+                border: "1px solid #ddd",
+                borderRadius: "5px",
+                boxSizing: "border-box",
+              }}
+            />
+            {staticSessionIdInput && (
+              <div
+                style={{
+                  marginTop: "5px",
+                  fontSize: "clamp(11px, 2.5vw, 12px)",
+                  color: "#28a745",
+                }}
+              >
+                ✓ Will use static session ID
+              </div>
+            )}
+          </div>
+          <button
+            onClick={createSession}
+            disabled={loading}
+            style={{
+              ...(loading ? BUTTON_STYLES.disabled : BUTTON_STYLES.primary),
+              width: "100%",
+              fontSize: "clamp(14px, 4vw, 16px)",
+              padding: "12px 20px",
+            }}
+          >
+            {loading ? "Creating session..." : "Start Face Liveness Check"}
+          </button>
+        </div>
       )}
 
       {session && isLivenessActive && (
