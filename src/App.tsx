@@ -1,10 +1,13 @@
-import FaceLivenessDemo from "./component/FaceLivenessDemo";
+import FaceLiveness from "./component/FaceLiveness";
+import { LanguageProvider } from "./component/LanguageContext";
 
 function App() {
   return (
-    <main>
-      <FaceLivenessDemo />
-    </main>
+    <LanguageProvider>
+      <main>
+        <FaceLiveness />
+      </main>
+    </LanguageProvider>
   );
 }
 

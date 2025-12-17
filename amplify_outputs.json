@@ -1,28 +1,7 @@
 {
-  "auth": {
-    "user_pool_id": "us-east-1_Fw39hersy",
-    "aws_region": "us-east-1",
-    "user_pool_client_id": "3e2c8mk7aci19dv56ou4vvm6i4",
-    "identity_pool_id": "us-east-1:601b8875-404a-483d-9871-3192a3e057a1",
-    "mfa_methods": [],
-    "standard_required_attributes": [
-      "email"
-    ],
-    "username_attributes": [
-      "email"
-    ],
-    "user_verification_types": [
-      "email"
-    ],
-    "mfa_configuration": "NONE",
-    "password_policy": {
-      "min_length": 8,
-      "require_lowercase": true,
-      "require_numbers": true,
-      "require_symbols": true,
-      "require_uppercase": true
-    },
-    "unauthenticated_identities_enabled": true
-  },
-  "version": "1.2"
+  "aws_project_region": "ap-northeast-1",
+  "aws_cognito_region": "ap-northeast-1",
+  "aws_cognito_identity_pool_id": "ap-northeast-1:c0a4d611-002f-4209-ae8c-824ab1d8cfb7",
+  "aws_cognito_allow_unauthenticated_identities": true,
+  "aws_rekognition_region": "ap-northeast-1"
 }
